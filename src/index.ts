@@ -1,8 +1,8 @@
-import { Probot } from "probot";
+import { Context, Probot } from "probot";
 
 export default (app: Probot) => {
   // on pull request opened
-  app.on("pull_request.opened", async (context) => {
+  app.on("pull_request.opened", async (context: Context) => {
     await context.octokit.issues.addLabels(
       context.issue({ labels: ["awaiting review"] })
     );
