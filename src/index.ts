@@ -3,13 +3,10 @@ import { CheckDocumentation, DocumentationError } from "./linter.js";
 
 export default (app: Probot) => {
   // on pull request opened
-  app.on("pull_request.opened", async (context) => {
+  app.on("pull_request.opened", async (context: Context) => {
     await context.octokit.issues.addLabels(
       context.issue({ labels: ["awaiting review"] })
     );
-
-
-
 
     await context.octokit.issues.createComment(
       context.issue({
@@ -19,30 +16,54 @@ export default (app: Probot) => {
       })
     );
 
+    var comments = [];
 
     // get read all the files
-    const files = (await (context.octokit.pulls.listFiles({
-      owner: context.repo().owner,
-      repo: context.repo().repo,
-      pull_number: context.pullRequest().pull_number,
-    }))).data;
-    
-
-
+    const files = (
+      await context.octokit.pulls.listFiles({
+        owner: context.repo().owner,
+        repo: context.repo().repo,
+        pull_number: context.pullRequest().pull_number,
+      })
+    ).data;
 
     for (const file of files) {
-      let file_contents: string = ""
-      let blob = (await fetch(file.blob_url).then(r => r.blob())).text().then(value => file_contents = value);
-
-
-      let errors: DocumentationError[] = CheckDocumentation(file_contents.split("\n"));
-      for (const error of errors) {
-        // todo
+      if (!file.filename.endsWith(".cpp")) {
+        continue;
       }
-      
+      let file_contents: string = "";
 
+      await (await fetch(file.blob_url).then((r) => r.blob()))
+        .text()
+        .then((value: string) => (file_contents = value));
+
+      let errors: DocumentationError[] = CheckDocumentation(
+        file_contents.split("\n")
+      );
+
+      if (errors.length > 0) {
+        await context.octokit.issues.addLabels(
+          context.issue({ labels: ["Proper Documentation Required"] })
+        );
+      }
+
+      for (const error of errors) {
+        comments.push({
+          path: file.filename,
+          line: error.line + 1,
+          body: error.what,
+        });
+      }
     }
-
+    if (comments.length > 0) {
+      await context.octokit.pulls.createReview({
+        owner: context.repo().owner,
+        repo: context.repo().repo,
+        pull_number: context.pullRequest().pull_number,
+        comments: comments,
+        event: "REQUEST_CHANGES",
+      });
+    }
   });
 
   app.on("pull_request_review.submitted", async (context) => {
