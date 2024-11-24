@@ -1,5 +1,5 @@
 import { Context, Probot } from "probot";
-import { CheckDocumentation, DocumentationError } from "./linter.js";
+import { CheckDocumentation, DocumentationError } from "./parser.js";
 
 export default (app: Probot) => {
   // on pull request opened
